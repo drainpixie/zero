@@ -1,28 +1,23 @@
-use std::fmt;
+use std::{fmt, net::SocketAddr};
 
 pub struct ZeroServer<'a> {
-    pub address: &'a str,
+    pub address: SocketAddr,
     pub root: &'a str,
-    pub port: u16,
 }
 
 impl fmt::Display for ZeroServer<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "ZeroServer(address: {}, root: {}, port: {})",
-            self.address, self.root, self.port
+            "ZeroServer(address: {}, root: {})",
+            self.address, self.root
         )
     }
 }
 
 impl ZeroServer<'_> {
-    pub fn new<'a>(address: &'a str, port: u16, root: &'a str) -> ZeroServer<'a> {
-        ZeroServer {
-            address,
-            root,
-            port,
-        }
+    pub fn new<'a>(address: SocketAddr, root: &'a str) -> ZeroServer<'a> {
+        ZeroServer { address, root }
     }
 
     pub async fn run(&self) {}
