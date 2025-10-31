@@ -11,6 +11,9 @@ use hyper_util::rt::TokioIo;
 use tokio::{fs::File, net::TcpListener};
 use tokio_util::io::ReaderStream;
 
+type BoxError = Box<dyn std::error::Error + Send + Sync>;
+type HttpResponse = Response<BoxBody<Bytes, std::io::Error>>;
+
 pub struct ZeroServer {
     pub addr: SocketAddr,
     pub root: PathBuf,
@@ -28,14 +31,14 @@ impl fmt::Display for ZeroServer {
 }
 
 impl ZeroServer {
-    pub fn new(addr: SocketAddr, root: impl Into<PathBuf>) -> ZeroServer {
+    pub fn new(addr: SocketAddr, root: impl Into<PathBuf>) -> Self {
         ZeroServer {
             addr,
             root: root.into(),
         }
     }
 
-    pub async fn run(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn run(&self) -> Result<(), BoxError> {
         let listener = TcpListener::bind(self.addr).await?;
         let root = Arc::new(self.root.clone());
 
@@ -59,7 +62,7 @@ impl ZeroServer {
         }
     }
 
-    fn not_found() -> Response<BoxBody<Bytes, std::io::Error>> {
+    fn not_found() -> HttpResponse {
         Response::builder()
             .status(StatusCode::NOT_FOUND)
             .body(
@@ -73,7 +76,7 @@ impl ZeroServer {
     async fn serve(
         root: Arc<PathBuf>,
         req: Request<impl hyper::body::Body>,
-    ) -> hyper::Result<Response<BoxBody<Bytes, std::io::Error>>> {
+    ) -> hyper::Result<HttpResponse> {
         let request_path = req.uri().path().trim_start_matches("/");
         let mut file_path = root.join(request_path);
 
