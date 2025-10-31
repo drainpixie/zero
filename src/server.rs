@@ -11,39 +11,46 @@ use hyper_util::rt::TokioIo;
 use tokio::{fs::File, net::TcpListener};
 use tokio_util::io::ReaderStream;
 
-pub struct ZeroServer<'a> {
+pub struct ZeroServer {
     pub addr: SocketAddr,
-    pub root: &'a str,
+    pub root: PathBuf,
 }
 
-impl fmt::Display for ZeroServer<'_> {
+impl fmt::Display for ZeroServer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ZeroServer(address: {}, root: {})", self.addr, self.root)
+        write!(
+            f,
+            "ZeroServer(address: {}, root: {})",
+            self.addr,
+            self.root.display()
+        )
     }
 }
 
-impl ZeroServer<'_> {
-    pub fn new<'a>(addr: SocketAddr, root: &'a str) -> ZeroServer<'a> {
-        ZeroServer { addr, root }
+impl ZeroServer {
+    pub fn new(addr: SocketAddr, root: impl Into<PathBuf>) -> ZeroServer {
+        ZeroServer {
+            addr,
+            root: root.into(),
+        }
     }
 
     pub async fn run(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let listener = TcpListener::bind(self.addr).await?;
-        let root = Arc::new(self.root.to_string());
+        let root = Arc::new(self.root.clone());
 
         loop {
             let (stream, _) = listener.accept().await?;
-            let io = TokioIo::new(stream);
             let root = Arc::clone(&root);
 
             tokio::spawn(async move {
                 let service = service_fn(move |req: Request<Incoming>| {
                     let root = Arc::clone(&root);
-                    async move { Self::serve_path(&root, req).await }
+                    async move { Self::serve(root, req).await }
                 });
 
                 if let Err(err) = hyper::server::conn::http1::Builder::new()
-                    .serve_connection(io, service)
+                    .serve_connection(TokioIo::new(stream), service)
                     .await
                 {
                     eprintln!("error serving connection: {:?}", err);
@@ -63,12 +70,12 @@ impl ZeroServer<'_> {
             .unwrap()
     }
 
-    async fn serve_path(
-        root: &str,
+    async fn serve(
+        root: Arc<PathBuf>,
         req: Request<impl hyper::body::Body>,
     ) -> hyper::Result<Response<BoxBody<Bytes, std::io::Error>>> {
         let request_path = req.uri().path().trim_start_matches("/");
-        let mut file_path = PathBuf::from(root).join(request_path);
+        let mut file_path = root.join(request_path);
 
         if file_path.is_dir() {
             file_path.push("index.html");
