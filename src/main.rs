@@ -5,12 +5,13 @@ use crate::server::ZeroServer;
 pub mod server;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let addr: SocketAddr = ([127, 0, 0, 1], 3000).into();
-    let server = ZeroServer::new(addr, "../example");
+    let root = std::env::current_dir()?.join("example");
+    let server = ZeroServer::new(addr, root.to_str().unwrap());
 
-    server.run().await;
     println!("{}", server);
+    server.run().await?;
 
     Ok(())
 }
