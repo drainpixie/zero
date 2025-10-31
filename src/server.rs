@@ -91,13 +91,17 @@ impl ZeroServer {
         match File::open(&file_path).await {
             Ok(file) => {
                 // TODO: Use a proper mime detection library
-                let content_type = match file_path.extension().and_then(|s| s.to_str()) {
-                    Some("html") => "text/html",
-                    Some("css") => "text/css",
-                    Some("js") => "application/javascript",
-                    Some("png") => "image/png",
-                    Some("jpg") | Some("jpeg") => "image/jpeg",
-                    Some("gif") => "image/gif",
+                let content_type = match file_path.extension().and_then(|ext| ext.to_str()).unwrap()
+                {
+                    "html" => "text/html",
+                    "css" => "text/css",
+                    "js" => "application/javascript",
+                    "png" => "image/png",
+                    "jpg" | "jpeg" => "image/jpeg",
+                    "gif" => "image/gif",
+                    "svg" => "image/svg+xml",
+                    "json" => "application/json",
+                    "wasm" => "application/wasm",
                     _ => "application/octet-stream",
                 };
 
