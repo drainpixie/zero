@@ -1,4 +1,9 @@
-use std::{fmt, net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{
+    fmt,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use futures_util::TryStreamExt;
 use http_body_util::{BodyExt, Full, StreamBody, combinators::BoxBody};
@@ -67,7 +72,7 @@ impl ZeroServer {
             .status(StatusCode::NOT_FOUND)
             .body(
                 Full::new("404 Not Found".into())
-                    .map_err(|e| match e {})
+                    .map_err(|_| unreachable!())
                     .boxed(),
             )
             .unwrap()
@@ -77,40 +82,46 @@ impl ZeroServer {
         root: Arc<PathBuf>,
         req: Request<impl hyper::body::Body>,
     ) -> hyper::Result<HttpResponse> {
-        let request_path = req.uri().path().trim_start_matches("/");
-        let mut file_path = root.join(request_path);
+        let path = req.uri().path();
 
-        if file_path.is_dir() {
-            file_path.push("index.html");
+        if path.starts_with("/static/") {
+            let file_path = root.join(path.trim_start_matches('/'));
+
+            return Ok(Self::serve_file(&file_path)
+                .await
+                .unwrap_or_else(|_| Self::not_found()));
         }
 
-        if !file_path.exists() {
-            return Ok(Self::not_found());
+        let mut page_path = root.join("pages").join(path.trim_start_matches('/'));
+        if page_path.is_dir() || path == "/" {
+            page_path.push("index.html");
+        } else if page_path.extension().is_none() {
+            page_path.set_extension("html");
         }
 
-        match File::open(&file_path).await {
-            Ok(file) => {
-                // TODO: Use a proper mime detection library
-                let content_type = match file_path.extension().and_then(|ext| ext.to_str()).unwrap()
-                {
-                    "html" => "text/html",
-                    "css" => "text/css",
-                    "js" => "application/javascript",
-                    "png" => "image/png",
-                    "jpg" | "jpeg" => "image/jpeg",
-                    "gif" => "image/gif",
-                    "svg" => "image/svg+xml",
-                    "json" => "application/json",
-                    "wasm" => "application/wasm",
-                    _ => "application/octet-stream",
-                };
+        Ok(Self::serve_file(&page_path)
+            .await
+            .unwrap_or_else(|_| Self::not_found()))
+    }
 
-                Ok(Response::builder()
-                    .header("Content-Type", content_type)
-                    .body(StreamBody::new(ReaderStream::new(file).map_ok(Frame::data)).boxed())
-                    .unwrap())
-            }
-            Err(_) => Ok(Self::not_found()),
-        }
+    async fn serve_file(path: &Path) -> Result<HttpResponse, std::io::Error> {
+        let file = File::open(path).await?;
+        let content_type = match path.extension().and_then(|ext| ext.to_str()).unwrap() {
+            "html" => "text/html",
+            "css" => "text/css",
+            "js" => "application/javascript",
+            "png" => "image/png",
+            "jpg" | "jpeg" => "image/jpeg",
+            "gif" => "image/gif",
+            "svg" => "image/svg+xml",
+            "json" => "application/json",
+            "wasm" => "application/wasm",
+            _ => "application/octet-stream",
+        };
+
+        Ok(Response::builder()
+            .header("Content-Type", content_type)
+            .body(StreamBody::new(ReaderStream::new(file).map_ok(Frame::data)).boxed())
+            .unwrap())
     }
 }
