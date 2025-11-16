@@ -1,8 +1,5 @@
 use std::net::SocketAddr;
-
-use crate::server::ZeroServer;
-
-pub mod server;
+use zero::server::ZeroServer;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
