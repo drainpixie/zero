@@ -58,8 +58,8 @@
       system,
     }: let
       check = self.checks.${system}.pre-commit-check;
-    in
-      pkgs.mkShell {
+    in {
+      default = pkgs.mkShell {
         inherit (check) shellHook;
 
         packages =
@@ -75,7 +75,8 @@
           });
 
         env.RUST_SRC_PATH = "${pkgs.rustToolchain}/lib/rustlib/src/rust/library";
-      });
+      };
+    });
 
     packages = forAllSystems ({pkgs, ...}: {
       default =
@@ -96,10 +97,8 @@
       system,
       pkgs,
       ...
-    }: let
-      hooksLib = hooks.lib.${system};
-    in {
-      pre-commit-check = hooksLib.run {
+    }: {
+      pre-commit-check = hooks.lib.${system}.run {
         src = ./.;
         package = pkgs.prek;
         hooks = {
