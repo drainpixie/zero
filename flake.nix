@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
 
     hooks = {
       url = "github:cachix/git-hooks.nix";
@@ -31,7 +31,7 @@
 
     forAllSystems = f:
       lib.genAttrs systems (system:
-        f rec {
+        f {
           pkgs = import nixpkgs {
             inherit system;
             overlays = [self.overlays.default];
@@ -58,8 +58,8 @@
       system,
     }: let
       check = self.checks.${system}.pre-commit-check;
-    in {
-      default = pkgs.mkShell {
+    in
+      pkgs.mkShell {
         inherit (check) shellHook;
 
         packages =
@@ -68,17 +68,14 @@
             inherit
               (pkgs)
               rustToolchain
-              cargo-deny
               cargo-edit
-              cargo-semver-checks
               cargo-watch
               rust-analyzer
               ;
           });
 
         env.RUST_SRC_PATH = "${pkgs.rustToolchain}/lib/rustlib/src/rust/library";
-      };
-    });
+      });
 
     packages = forAllSystems ({pkgs, ...}: {
       default =
@@ -95,11 +92,16 @@
         };
     });
 
-    checks = forAllSystems ({system, ...}: let
+    checks = forAllSystems ({
+      system,
+      pkgs,
+      ...
+    }: let
       hooksLib = hooks.lib.${system};
     in {
       pre-commit-check = hooksLib.run {
         src = ./.;
+        package = pkgs.prek;
         hooks = {
           convco.enable = true;
           alejandra.enable = true;
